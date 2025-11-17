@@ -3,18 +3,28 @@ import numpy as np
 import cv2
 from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing.image import img_to_array
+from tensorflow.keras.applications.mobilenet_v2 import preprocess_input
 
+# --- OPTIMIZATION ---
+# Cache the model loading to improve performance.
+@st.cache(allow_output_mutation=True)
+def load_deepfake_model():
+    # The model is loaded with the custom objects needed for mixed precision
+    model = load_model('deepfake_detection_model.h5')
+    return model
 
-# Load the trained model
-
-model = load_model('deepfake_detection_model.h5')
+model = load_deepfake_model()
 
 # Preprocess the image
 def preprocess_image(image):
-    image = cv2.resize(image, (96, 96))
+    # --- BUG FIX ---
+    # The model was trained on 128x128 images. Changed from 96x96.
+    image = cv2.resize(image, (128, 128))
     image = img_to_array(image)
     image = np.expand_dims(image, axis=0)
-    image = image / 255.0
+    # --- OPTIMIZATION ---
+    # Use the same preprocessing as in training for better accuracy.
+    image = preprocess_input(image)
     return image
 
 # Predict if the image is fake or real
@@ -46,7 +56,6 @@ if uploaded_file is not None:
     # Predict and display result
     result = predict_image(image)
 
-    # Set the color based on the result
     # Set the color based on the result
     if result == "Fake":
         color = "red"

@@ -1,104 +1,103 @@
-# Running the Deepfake Detection Project in Google Colab
+# Deepfake Image Detection Project
 
-This guide provides step-by-step instructions on how to run the deepfake detection project in a Google Colab environment.
+This project uses a deep learning model (MobileNetV2) to detect whether an image is a real or a deepfake. It includes scripts for training the model, making predictions, and a Streamlit web application to interact with the model.
 
-## 1. Prerequisites
+This version has been optimized for use on a T4 GPU in Google Colab and includes important bug fixes.
 
-Before you begin, make sure you have the following files and folders ready:
+## Key Features & Optimizations
 
-*   **`Code` directory:** This contains the Python scripts (`app.py`, `predict.py`, `train.py`, `utils.py`).
-*   **`real_and_fake_face` directory:** This is the dataset containing the training images.
-*   **`coverpage.png`:** An image file used in the Streamlit application.
+*   **Deep Learning Model:** Utilizes a fine-tuned MobileNetV2 model for efficient and accurate deepfake detection.
+*   **T4 GPU Optimization:** The training script (`train.py`) is optimized for T4 GPUs by using **mixed-precision training**, which significantly speeds up training time.
+*   **Bug Fixes:** Critical bugs in image preprocessing have been fixed across all scripts (`train.py`, `predict.py`, `app.py`, `utils.py`). The image size is now correctly set to `(128, 128)` and uses the appropriate `preprocess_input` function.
+*   **Streamlit Web App:** An easy-to-use web interface (`app.py`) to upload an image and get a prediction. Model loading is cached for better performance.
 
-## 2. Upload to Google Drive
+## Project Structure
 
-You need to upload your project files to Google Drive to access them in Colab.
-
-1.  Create a new folder in your Google Drive, for example, `Deepfake_Detection`.
-2.  Inside the `Deepfake_Detection` folder, create a `Code` folder.
-3.  Upload the Python scripts (`app.py`, `predict.py`, `train.py`, `utils.py`) and the `coverpage.png` image into the `Code` folder.
-4.  Upload the `real_and_fake_face` dataset directory to the `Deepfake_Detection` folder.
-
-Your folder structure in Google Drive should look like this:
-
+The project follows a simple structure:
 ```
-/My Drive/
-└── Deepfake_Detection/
-    ├── Code/
-    │   ├── app.py
-    │   ├── predict.py
-    │   ├── train.py
-    │   ├── utils.py
-    │   └── coverpage.png
-    └── real_and_fake_face/
-        └── ... (dataset files)
+/
+├── app.py              # Streamlit web application
+├── predict.py          # Script for making single predictions
+├── train.py            # Script for training the model
+├── utils.py            # Utility functions (not directly used by app.py or predict.py)
+├── requirements.txt    # Python dependencies
+├── deepfake_detection_model.h5   # The trained model (after running train.py)
+└── real_and_fake_face/ # Folder containing the dataset
+    ├── training_real/
+    └── training_fake/
 ```
 
-## 3. Set up the Colab Notebook
+## Running the Project in Google Colab
 
-1.  Open a new Colab notebook.
-2.  Mount your Google Drive by running the following code in a cell:
+### 1. Set Up Google Drive
 
+1.  Create a main project folder in your Google Drive (e.g., `Deepfake_Project`).
+2.  Upload the project files (`.py` files, `requirements.txt`) to this folder.
+3.  Upload your dataset into a subfolder named `real_and_fake_face` inside the main project folder.
+
+### 2. Set Up the Colab Notebook
+
+1.  Open a new Colab notebook and change the runtime type to **T4 GPU** (`Runtime` > `Change runtime type`).
+2.  Mount your Google Drive:
     ```python
     from google.colab import drive
     drive.mount('/content/drive')
     ```
-
-3.  Change the current directory to your project's `Code` folder. **Make sure to replace `My Drive` with your Google Drive's root folder name if it's different.**
-
+3.  Change to your project directory. **Remember to change the path to where you saved the project.**
     ```python
     import os
-    os.chdir('/content/drive/My Drive/Deepfake_Detection/Code')
+    os.chdir('/content/drive/My Drive/Deepfake_Project')
     ```
 
-## 4. Install Dependencies
+### 3. Install Dependencies
 
-Install the required Python libraries by running this command in a new cell:
-
+Install the required Python libraries:
 ```python
-!pip install streamlit numpy opencv-python tensorflow pandas scikit-learn matplotlib tqdm pyngrok
+!pip install -r requirements.txt
 ```
 
-## 5. Train the Model
+### 4. Train the Model
 
-To train the deepfake detection model, run the `train.py` script. The script will prompt you to enter the paths for your real and fake datasets. This script has been optimized for better results and higher accuracy through enhanced data augmentation, fine-tuned model architecture, and advanced callbacks (EarlyStopping, ModelCheckpoint, ReduceLROnPlateau). It also includes TPU compatibility for faster training if a TPU runtime is available.
+Before training, you may need to update the dataset paths in `train.py`. By default, they are:
+*   `real = 'real_and_fake_face/training_real/'`
+*   `fake = 'real_and_fake_face/training_fake/'`
 
-This will save the trained model as `deepfake_detection_model.h5` and generate the training plots (`Figure_1.png` and `Figure_2.png`) in your `Code` directory.
+Run the training script. This will save `deepfake_detection_model.h5` and some training plots in your project directory.
 
 ```python
 !python train.py
 ```
 
-## 6. Run the Streamlit Application with `ngrok`
+### 5. Run the Streamlit Application with `ngrok`
 
-To run the Streamlit application, you'll need to use `ngrok` to create a public URL for your app.
+Use `ngrok` to create a public URL for your Streamlit app.
 
-1.  **Get your `ngrok` authtoken.**
-    *   Go to the [ngrok dashboard](https://dashboard.ngrok.com/get-started/your-authtoken) and copy your authtoken.
-
-2.  **Set your `ngrok` authtoken in the Colab notebook.** Replace `YOUR_AUTHTOKEN` with your actual token.
+1.  **Get your `ngrok` authtoken** from the [ngrok dashboard](https://dashboard.ngrok.com/get-started/your-authtoken).
+2.  Run the following code in Colab, replacing `YOUR_AUTHTOKEN` with your token.
 
     ```python
+    !pip install pyngrok
     from pyngrok import ngrok
-    ngrok.set_auth_token("YOUR_AUTHTOKEN")
-    ```
 
-3.  **Run the Streamlit app.** The following code will start the Streamlit app and expose it with `ngrok`.
-
-    ```python
     # Terminate any existing ngrok tunnels
     ngrok.kill()
 
-    # Set up the public URL
+    # Set up ngrok with your authtoken
+    ngrok.set_auth_token("YOUR_AUTHTOKEN")
+
+    # Run streamlit in background
+    !nohup streamlit run app.py &
+
+    # Create the public URL
     public_url = ngrok.connect(port='8501')
     print('Streamlit App URL:', public_url)
-
-    # Run the Streamlit app
-    !streamlit run app.py --server.port 8501
     ```
+3. Click the `ngrok.io` link to open your application.
 
-## 7. Achieving the Output
+## How to Make a Prediction with `predict.py`
 
-After running the final cell, you will see a URL ending with `ngrok.io`. Click on this URL to open the Streamlit application in a new browser tab.
-
-You can then upload an image, and the application will predict whether the image is "Real" or "Fake" and display the result.
+You can test a single image prediction by updating the `image_path` in `predict.py` and running the script:
+```python
+!python predict.py
+```
+This will print whether the image is "Real" or "Fake".
