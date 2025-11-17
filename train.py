@@ -25,12 +25,12 @@ mixed_precision.set_global_policy(policy)
 
 # --- IMPORTANT ---
 # Change these paths to your dataset location in Google Colab
-real = 'real_and_fake_face_detection/real_and_fake_face/training_real/'
-fake = 'real_and_fake_face_detection/real_and_fake_face/training_fake/'
+real = 'dataset/train/REAL/'
+fake = 'dataset/train/FAKE/'
 
-# Load image paths
-real_path = os.listdir(real)
-fake_path = os.listdir(fake)
+# Load image paths for visualization
+real_path_viz = os.listdir(real)
+fake_path_viz = os.listdir(fake)
 
 # Derive dataset_path from the real path
 dataset_path = os.path.dirname(os.path.dirname(real))
@@ -47,7 +47,7 @@ def load_img(path):
 fig = plt.figure(figsize=(10, 10))
 for i in range(16):
     plt.subplot(4, 4, i + 1)
-    plt.imshow(load_img(os.path.join(real, real_path[i])), cmap='gray')
+    plt.imshow(load_img(os.path.join(real, real_path_viz[i])), cmap='gray')
     plt.suptitle("Real faces", fontsize=20)
     plt.axis('off')
 plt.savefig('real_faces_preview.png')
@@ -55,9 +55,9 @@ plt.savefig('real_faces_preview.png')
 fig = plt.figure(figsize=(10, 10))
 for i in range(16):
     plt.subplot(4, 4, i + 1)
-    plt.imshow(load_img(os.path.join(fake, fake_path[i])), cmap='gray')
+    plt.imshow(load_img(os.path.join(fake, fake_path_viz[i])), cmap='gray')
     plt.suptitle("Fake faces", fontsize=20)
-    plt.title(fake_path[i][:4])
+    plt.title(fake_path_viz[i][:4])
     plt.axis('off')
 plt.savefig('fake_faces_preview.png')
 
@@ -67,17 +67,10 @@ print("REPLICAS: ", strategy.num_replicas_in_sync)
 
 AUTO = tf.data.experimental.AUTOTUNE
 BATCH_SIZE = 32 * strategy.num_replicas_in_sync
+SHUFFLE_BUFFER_SIZE = 1024 # Using a fixed buffer size to limit memory usage
+VALIDATION_SPLIT = 0.2
 
 # Data pipeline
-def get_dataset(real_path_list, fake_path_list):
-    real_images = [os.path.join(real, img) for img in real_path_list]
-    fake_images = [os.path.join(fake, img) for img in fake_path_list]
-    
-    all_images = real_images + fake_images
-    labels = [1] * len(real_images) + [0] * len(fake_images)
-    
-    return train_test_split(all_images, labels, test_size=0.2, random_state=42)
-
 def decode_image(image_path, label):
     image = tf.io.read_file(image_path)
     image = tf.image.decode_jpeg(image, channels=3)
@@ -91,20 +84,39 @@ def augment(image, label):
     image = tf.image.random_contrast(image, lower=0.9, upper=1.1)
     return image, label
 
-def create_dataset(image_paths, labels, is_training=True):
-    dataset = tf.data.Dataset.from_tensor_slices((image_paths, labels))
-    dataset = dataset.map(decode_image, num_parallel_calls=AUTO)
+def configure_dataset(ds, is_training=True):
+    ds = ds.map(decode_image, num_parallel_calls=AUTO)
     if is_training:
-        dataset = dataset.map(augment, num_parallel_calls=AUTO)
-    dataset = dataset.shuffle(buffer_size=len(image_paths))
-    dataset = dataset.batch(BATCH_SIZE)
-    dataset = dataset.prefetch(buffer_size=AUTO)
-    return dataset
+        ds = ds.map(augment, num_parallel_calls=AUTO)
+    ds = ds.batch(BATCH_SIZE)
+    ds = ds.prefetch(buffer_size=AUTO)
+    return ds
 
-X_train, X_val, y_train, y_val = get_dataset(real_path, fake_path)
+# Create datasets from file paths
+real_files = tf.data.Dataset.list_files(os.path.join(real, '*.jpg'), shuffle=True)
+fake_files = tf.data.Dataset.list_files(os.path.join(fake, '*.jpg'), shuffle=True)
 
-train_dataset = create_dataset(X_train, y_train)
-val_dataset = create_dataset(X_val, y_val, is_training=False)
+# Get the number of files
+num_real = tf.data.experimental.cardinality(real_files)
+num_fake = tf.data.experimental.cardinality(fake_files)
+
+real_labels = tf.data.Dataset.from_tensor_slices(tf.ones(num_real, dtype=tf.int32))
+fake_labels = tf.data.Dataset.from_tensor_slices(tf.zeros(num_fake, dtype=tf.int32))
+
+real_ds = tf.data.Dataset.zip((real_files, real_labels))
+fake_ds = tf.data.Dataset.zip((fake_files, fake_labels))
+
+dataset = real_ds.concatenate(fake_ds)
+dataset = dataset.shuffle(buffer_size=SHUFFLE_BUFFER_SIZE)
+
+dataset_size = num_real + num_fake
+train_size = int((1 - VALIDATION_SPLIT) * dataset_size)
+
+train_dataset = dataset.take(train_size)
+val_dataset = dataset.skip(train_size)
+
+train_dataset = configure_dataset(train_dataset)
+val_dataset = configure_dataset(val_dataset, is_training=False)
 
 # MobileNetV2 model
 with strategy.scope():
