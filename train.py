@@ -359,7 +359,7 @@ hist = model.fit(train_dataset,
 
 
 
-                 epochs=50,
+                 epochs=8,
 
 
 
