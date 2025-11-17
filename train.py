@@ -110,7 +110,7 @@ dataset = real_ds.concatenate(fake_ds)
 dataset = dataset.shuffle(buffer_size=SHUFFLE_BUFFER_SIZE)
 
 dataset_size = num_real + num_fake
-train_size = int((1 - VALIDATION_SPLIT) * dataset_size)
+train_size = tf.cast(tf.cast(dataset_size, tf.float32) * (1 - VALIDATION_SPLIT), tf.int64)
 
 train_dataset = dataset.take(train_size)
 val_dataset = dataset.skip(train_size)
