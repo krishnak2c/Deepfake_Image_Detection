@@ -10,6 +10,17 @@ pinned: false
 ---
 -->
 
+### About the Project
+
+This repository serves as a professional-grade implementation of deep learning for digital forensics. It is optimized for high-performance inference and automated deployment to **Hugging Face Spaces**.
+
+- **Model Architecture**: EfficientNetB0 (Fine-tuned for binary classification).
+- **Automated CI/CD**: Integrated GitHub Actions for seamless deployment and synchronization.
+- **Reproducibility**: Includes full training scripts, configuration files, and pre-trained weights.
+- **Large File Management**: Utilizes Git LFS for efficient model storage and versioning.
+
+---
+
 # 🛡️ Deepfake Image Detection
 
 [![Hugging Face Space](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Space-blue)](https://huggingface.co/spaces/krishnak2c/deepfake-image-detection)
