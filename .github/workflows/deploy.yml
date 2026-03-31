@@ -9,6 +9,9 @@ on:
 jobs:
   sync-to-hub:
     runs-on: ubuntu-latest
+    environment:
+      name: Hugging Face
+      url: https://huggingface.co/spaces/krishnak2c/deepfake-image-detection
     steps:
       - uses: actions/checkout@v3
         with:
