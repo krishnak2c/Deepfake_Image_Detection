@@ -1,3 +1,14 @@
+---
+title: Deepfake Image Detection
+emoji: 🛡️
+colorFrom: gray
+colorTo: blue
+sdk: streamlit
+sdk_version: 1.31.0
+app_file: app.py
+pinned: false
+---
+
 # 🛡️ Deepfake Image Detection
 
 [![Streamlit App](https://static.streamlit.io/badges/streamlit_badge.svg)](https://share.streamlit.io/)
