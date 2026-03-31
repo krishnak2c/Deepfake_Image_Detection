@@ -1,89 +1,142 @@
 import streamlit as st
+
 import numpy as np
 import cv2
-from tensorflow.keras.models import load_model
-from tensorflow.keras.preprocessing.image import img_to_array
-from tensorflow.keras.applications.mobilenet_v2 import preprocess_input
+import tensorflow as tf
+from PIL import Image
+from config import IMAGE_SIZE
+import os
 
-# --- OPTIMIZATION ---
-# Cache the model loading to improve performance.
-@st.cache(allow_output_mutation=True)
+
+# --- Page Configuration ---
+st.set_page_config(
+    page_title="Deepfake Detection",
+    layout="wide"
+)
+
+# --- Model Loading ---
+# This is cached to prevent reloading the model on every interaction.
+@st.cache_resource
 def load_deepfake_model():
-    # The model is loaded with the custom objects needed for mixed precision
-    model = load_model('deepfake_detection_model.h5')
-    return model
+    """
+    Loads the trained deepfake detection model.
+    Using tf.keras.models.load_model is the recommended way as it loads
+    the model architecture, weights, and optimizer state.
+    """
+    print("Loading model...")
+    try:
+        # Load the model saved in the '.keras' format from train.py, which is the best model.
+        model = tf.keras.models.load_model('deepfake_detection_model.keras')
+        print("Model loaded successfully.")
+        return model
+    except Exception as e:
+        st.error(f"Error loading model: {e}")
+        print(f"Error loading model: {e}")
+        return None
 
 model = load_deepfake_model()
 
-# Preprocess the image
+# --- Image Preprocessing ---
 def preprocess_image(image):
-    # --- BUG FIX ---
-    # The model was trained on 128x128 images. Changed from 96x96.
-    image = cv2.resize(image, (128, 128))
-    image = img_to_array(image)
-    image = np.expand_dims(image, axis=0)
-    # --- OPTIMIZATION ---
-    # Use the same preprocessing as in training for better accuracy.
-    image = preprocess_input(image)
-    return image
+    """
+    Preprocesses the uploaded image to match the model's input requirements.
+    - Resizes to (224, 224) as used in the new training script.
+    - Converts to a numpy array.
+    - Adds a batch dimension.
+    """
+    image_array = np.array(image)
+    image_tensor = tf.convert_to_tensor(image_array)
+    # Use tf.image.resize to ensure consistency with training preprocessing
+    resized_tensor = tf.image.resize(image_tensor, IMAGE_SIZE)
+    # Add a batch dimension
+    return tf.expand_dims(resized_tensor, axis=0)
 
-# Predict if the image is fake or real
-def predict_image(image):
-    processed_image = preprocess_image(image)
-    prediction = model.predict(processed_image)
-    class_label = np.argmax(prediction, axis=1)[0]
-    return "Fake" if class_label == 0 else "Real"
+# --- UI Layout ---
 
-# Streamlit application
-st.markdown("<h1 style='text-align: center; color: grey;'>DEEP FAKE DETECTION IN SOCIAL MEDIA CONTENT</h1>", unsafe_allow_html=True)
-st.image("coverpage.png")
+# Header
+st.markdown("<h1 style='text-align: center; color: grey;'>Deepfake Image Detection</h1>", unsafe_allow_html=True)
+st.markdown("---")
 
-# Detailed description about deepfake
-st.header("Understanding Deepfakes")
+
+# Main content area
+if model is not None:
+    uploaded_file = st.file_uploader("Upload an image to check if it's a deepfake.", type=["jpg", "jpeg", "png"])
+
+    if uploaded_file is not None:
+        try:
+            image = Image.open(uploaded_file).convert('RGB')
+
+            col1, col2 = st.columns(2)
+
+            with col1:
+                st.image(image, caption='Uploaded Image', use_container_width=True)
+
+            with col2:
+                st.write("### Prediction")
+                with st.spinner('Analyzing the image...'):
+                    # Preprocess and predict
+                    processed_image = preprocess_image(image)
+                    # model.predict returns a 2D array, e.g., [[0.99]]. 
+                    # We need to access the inner value with [0][0].
+                    prediction = model.predict(processed_image)[0][0]
+
+                    # The model outputs a probability of being "Real".
+                    # 'REAL' was class 1, 'FAKE' was class 0.
+                    is_real_probability = prediction
+                    if is_real_probability > 0.5:
+                        result = "Real"
+                        confidence = is_real_probability * 100
+                        color = "green"
+                        st.markdown(f"<h2 style='color:{color};'>This image appears to be REAL</h2>", unsafe_allow_html=True)
+                        st.write(f"**Confidence:** {confidence:.2f}%")
+                        st.info("Our model is confident that this image is authentic. It does not show typical signs of manipulation associated with deepfakes.")
+
+                    else:
+                        result = "Fake"
+                        confidence = (1 - is_real_probability) * 100
+                        color = "red"
+                        st.markdown(f"<h2 style='color:{color};'>This image appears to be a FAKE</h2>", unsafe_allow_html=True)
+                        st.write(f"**Confidence:** {confidence:.2f}%")
+                        st.warning("Our model has detected characteristics commonly found in deepfakes. This could include subtle artifacts in facial features, lighting, or textures that suggest digital alteration.")
+        except Exception as e:
+            st.error(f"Error processing image: {e}")
+else:
+    st.error("Model could not be loaded. The application cannot proceed.")
+
+
+st.markdown("---")
+
+# Informational Sections
+st.markdown("### About Deepfakes")
 st.write("""
-Deepfakes are synthetic media where a person in an existing image or video is replaced with someone else's likeness. Leveraging sophisticated AI algorithms, primarily deep learning techniques, deepfakes can create incredibly realistic and convincing fake videos and images. This technology, while having legitimate uses in entertainment and education, poses significant ethical and security challenges. Deepfakes can be used to spread misinformation, create malicious content, and impersonate individuals without consent, raising serious concerns about privacy and trust in digital media. Detection of deepfakes is crucial to mitigate these risks, and AI plays a vital role in identifying such manipulations. By analyzing subtle artifacts and inconsistencies that are often imperceptible to the human eye, AI models can effectively distinguish between real and fake media, ensuring the integrity of visual content.
+Deepfakes are synthetic media in which a person in an existing image or video is replaced with someone else's likeness.
+This technology uses powerful AI and deep learning techniques to create realistic fake content. While it has creative applications,
+it also poses a significant threat in the form of misinformation, fake news, and malicious impersonation.
+Our tool is designed to help identify such manipulated media to promote digital authenticity.
 """)
 
-uploaded_file = st.file_uploader("Choose an image...", type=["jpg", "jpeg", "png"])
-if uploaded_file is not None:
-    # To read file as bytes:
-    file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
-    image = cv2.imdecode(file_bytes, 1)
+st.markdown("### About the Dataset")
+st.write("""
+This model was trained on a comprehensive dataset of nearly 140,000 images to learn the differences between real and fake faces.
+- **70,000 REAL images:** Sourced from the high-quality Flickr-Faces-HQ (FFHQ) dataset.
+- **70,000 FAKE images:** Artificially generated using a StyleGAN model.
 
-    # Display the uploaded image
-    st.image(image, channels="BGR")
+To prepare the data for training, all images are resized to 224x224 pixels to match the input size required by the underlying `EfficientNet` architecture. This large and balanced dataset is crucial for training a robust and accurate detector.
+""")
 
-    # Predict and display result
-    result = predict_image(image)
-
-    # Set the color based on the result
-    if result == "Fake":
-        color = "red"
-        description = "Our deepfake detection model has classified this image as fake based on various factors. Deepfake images often exhibit certain artifacts or inconsistencies that are not present in real images. These could include mismatched facial features, unnatural lighting or shadows, or inconsistencies in facial expressions. Our model has been trained to recognize these patterns and distinguish between real and fake images with high accuracy."
-
-    elif result == "Real":
-        color = "green"
-        description = "Our deepfake detection model has classified this image as real. Real images typically lack the subtle anomalies and inconsistencies present in deepfake images. Our model has been trained on a diverse dataset of real and fake images, enabling it to accurately differentiate between the two categories."
-
-    # Display the title with the appropriate color
-    st.markdown(f"<h1 style='color:{color};'>The image is {result}</h1>", unsafe_allow_html=True)
-
-    # Display the description
-    st.write(description)
+st.markdown("### Model Training Performance")
+st.write("The charts below show the model's performance during the training process on the validation dataset.")
+# Check if the training history image exists before trying to display it.
+if os.path.exists('training_history.png'):
+    st.image('training_history.png')
+else:
+    st.info("Training history graph not found. Run the `train.py` script to generate the model and the training history graph.")
 
 
-st.title("Model Training Graph")
-st.markdown("### Model Training accuracy: 95%")
-st.image("Figure_2.png")
-st.markdown("### Model Training Loss")
-st.image("Figure_1.png")
-
-# Footer section
+# Footer
+st.markdown("---")
 st.markdown("""
----
-**Contact Us:**
-For more information and queries, please contact us at [contact@example.com](mailto:contact@example.com).
-
-**Follow us on:**
-[Twitter](https://twitter.com) | [LinkedIn](https://linkedin.com) | [Facebook](https://facebook.com)
-""")
+<div style="text-align: center; color: grey;">
+    <p>For educational and demonstration purposes.</p>
+</div>
+""", unsafe_allow_html=True)
