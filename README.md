@@ -1,4 +1,3 @@
-<!--
 ---
 title: Deepfake Image Detection
 emoji: 🛡️
@@ -8,8 +7,6 @@ sdk: streamlit
 app_file: app.py
 pinned: false
 ---
--->
-
 
 # 🛡️ Deepfake Image Detection
 
