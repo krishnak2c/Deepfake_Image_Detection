@@ -78,11 +78,19 @@ Access the application at `http://localhost:8501`.
 
 ---
 
+## 📊 Model Performance
+
+*   **Overall Accuracy:** 98.82%
+*   **ROC-AUC Score:** 0.9994
+*   **Inference Latency:** 6.47 ms / image
+*   **Sensitivity (Recall):** 0.9907
+*   **Specificity:** 0.9857
+
 ## 🧠 Model Architecture & Dataset
 
 *   **Base Model:** `EfficientNetB0` (Frozen during Phase 1, Unfrozen during Phase 2).
 *   **Top Layers:** GlobalAveragePooling2D → Dense(512, ReLU) → Dropout(0.5) → BatchNormalization → Dense(256, ReLU) → Dropout(0.3) → Dense(1, Sigmoid).
-*   **Dataset:** Trained on ~140,000 images.
+*   **Dataset:** Evaluated on the **140k Real and Fake Faces dataset**.
     *   **70,000 REAL:** Sourced from Flickr-Faces-HQ (FFHQ).
     *   **70,000 FAKE:** Generated using StyleGAN.
 
